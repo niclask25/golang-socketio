@@ -3,13 +3,13 @@ package transport
 import (
 	"errors"
 	"github.com/gorilla/websocket"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"time"
 )
 
 const (
-	upgradeFailed     = "Upgrade failed: "
+	upgradeFailed = "Upgrade failed: "
 
 	WsDefaultPingInterval   = 30 * time.Second
 	WsDefaultPingTimeout    = 60 * time.Second
@@ -43,7 +43,7 @@ func (wsc *WebsocketConnection) GetMessage() (message string, err error) {
 		return "", ErrorBinaryMessage
 	}
 
-	data, err := ioutil.ReadAll(reader)
+	data, err := io.ReadAll(reader)
 	if err != nil {
 		return "", ErrorBadBuffer
 	}
@@ -110,7 +110,12 @@ func (wst *WebsocketTransport) HandleConnection(
 		return nil, ErrorMethodNotAllowed
 	}
 
-	socket, err := websocket.Upgrade(w, r, nil, wst.BufferSize, wst.BufferSize)
+	upgrader := websocket.Upgrader{
+		WriteBufferSize: wst.BufferSize,
+		ReadBufferSize:  wst.BufferSize,
+	}
+
+	socket, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		http.Error(w, upgradeFailed+err.Error(), 503)
 		return nil, ErrorHttpUpgradeFailed
@@ -119,12 +124,14 @@ func (wst *WebsocketTransport) HandleConnection(
 	return &WebsocketConnection{socket, wst}, nil
 }
 
-/**
+/*
+*
 Websocket connection do not require any additional processing
 */
 func (wst *WebsocketTransport) Serve(w http.ResponseWriter, r *http.Request) {}
 
-/**
+/*
+*
 Returns websocket connection with default params
 */
 func GetDefaultWebsocketTransport() *WebsocketTransport {
